@@ -7,8 +7,9 @@ var cast = require('./cast');
 var os = require('os');
 
 var audioStream = new BufferedStream;
+var serverName = 'AirCast Server';
 
-var server = http.createServer(function (req, res) {
+http.createServer(function (req, res) {
     logger.info('HTTP Client connected. Headers: ', req.headers);
     var writer = wav.Writer();
     res.writeHead(200, {
@@ -33,7 +34,7 @@ function getIp(hostName) {
 }
 
 var airplayServer = new AirTunesServer({
-    serverName: 'AirCast Server'
+    serverName: serverName
 });
 
 airplayServer.on('clientConnected', function (stream) {
@@ -45,3 +46,4 @@ airplayServer.on('clientConnected', function (stream) {
 });
 
 airplayServer.start();
+logger.info('Started AirCast server [', serverName, ']');
