@@ -4,6 +4,7 @@ var http = require('http');
 var BufferedStream = require('bufferedstream');
 var wav = require('wav');
 var cast = require('./cast');
+var os = require('os');
 
 var audioStream = new BufferedStream;
 
@@ -18,19 +19,27 @@ var server = http.createServer(function (req, res) {
 }).listen(1337);
 
 
-var myIp = '10.0.1.48';
-//var myIp = require('dns').lookup(require('os').hostname(), function (_, add) {
-//    logger.info('Local IP: ', add);
-//    return add;
-//}).hostname;
+function getIp(hostName) {
+    var result = null;
+    var dns  = require('dns');
+    dns.lookup(hostName, function (err, address) {
+        if (err) {
+            throw new Error('Unable to determine local IP address. Error:', err);
+        }
+        logger.info('Local IP: ', address);
+        result = address;
+    });
+    return result;
+}
 
 var airplayServer = new AirTunesServer({
     serverName: 'AirCast Server'
 });
 
 airplayServer.on('clientConnected', function (stream) {
-    logger.info('AirPlay client connected, starting Chromecast receiver...');
-    var sender = new cast.Sender('http://' + myIp + ':1337');
+    var url = 'http://' + getIp(os.hostname()) + ':1337';
+    logger.info('AirPlay client connected, starting Chromecast receiver');
+    var sender = new cast.Sender(url);
     sender.start();
     stream.pipe(audioStream);
 });
