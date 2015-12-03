@@ -3,19 +3,25 @@ var AirTunesServer = require('nodetunes');
 var http = require('http');
 var BufferedStream = require('bufferedstream');
 var wav = require('wav');
-var cast = require('./cast');
 var os = require('os');
-var audioStream = new BufferedStream;
+var cast = require('./cast');
+var net = require('./net.js');
+var Promise = require('bluebird');
 
-var serverName = 'AirCast Server';
+var mdns = require('mdns');
+
+var audioStream = new BufferedStream;
 
 var optimist = require('optimist')
     .usage('Usage $0 [options]')
-    .describe('h', 'Display this help')
-    .describe('p', 'Port for HTTP server')
+    .describe('h', 'Display help')
+    .describe('i', 'Ip or hostname for the audio stream (default: first' +
+        ' external interface)')
+    .describe('p', 'Port for HTTP streaming server (default: allocate random' +
+        ' port)')
     .alias('h', 'help')
-    .alias('p', 'port')
-    .default('port', 0);
+    .alias('i', 'ip')
+    .alias('p', 'port');
 
 var argv = optimist.argv;
 if (argv.help) {
@@ -23,7 +29,14 @@ if (argv.help) {
     process.exit(0);
 }
 
-var server = http.createServer(function (req, res) {
+// The .default() method in optimist would print 0 as default which can be
+// misleading, so let's not use it.
+if (!argv.port) {
+    argv.port = 0;
+}
+
+
+var streamServer = http.createServer(function (req, res) {
     logger.info('HTTP Client connected. Headers: ', req.headers);
     var writer = wav.Writer();
     res.writeHead(200, {
@@ -33,7 +46,7 @@ var server = http.createServer(function (req, res) {
     audioStream.pipe(writer).pipe(res);
 });
 
-server.on('error', function(e) {
+streamServer.on('error', function (e) {
     logger.info(e.code);
     switch (e.code) {
         case 'EACCES':
@@ -41,44 +54,65 @@ server.on('error', function(e) {
             process.exit(-1);
             break;
         default:
-            logger.error('HTTP server error: ', e);
+            logger.error('HTTP streamServer error: ', e);
             process.exit(-1);
             break;
     }
 });
-
-var http_port;
-server.listen(argv.port);
-server.on('listening', function() {
-    http_port = server.address().port;
-    logger.info('HTTP server listening on port', http_port);
-});
-
-
-function getIp(hostName) {
-    var result = null;
-    var dns  = require('dns');
-    dns.lookup(hostName, function (err, address) {
-        if (err) {
-            throw new Error('Unable to determine local IP address. Error:', err);
-        }
-        logger.info('Local IP: ', address);
-        result = address;
-    });
-    return result;
+var httpPort;
+var localIpResolve;
+if (argv.ip) {
+    localIpResolve = Promise.resolve(argv.ip);
+} else {
+    localIpResolve = net.getIp(os.hostname());
 }
+streamServer.listen(argv.port);
 
-var airplayServer = new AirTunesServer({
-    serverName: serverName
+streamServer.on('listening', function () {
+    httpPort = streamServer.address().port;
+    logger.info('HTTP server listening on port', httpPort);
 });
 
-airplayServer.on('clientConnected', function (stream) {
-    var url = 'http://' + getIp(os.hostname()) + ':1337';
-    logger.info('AirPlay client connected, starting Chromecast receiver');
-    var sender = new cast.Sender(url);
-    sender.start();
-    stream.pipe(audioStream);
+var airCastServers = {};
+var browser = mdns.createBrowser(mdns.tcp('googlecast'));
+browser.on('serviceUp', function (service) {
+    logger.info('Found Cast device:', service.name);
+
+    var castDevice = {
+        name: service.name,
+        address: service.addresses[0],
+        port: service.port
+    };
+
+    localIpResolve.then(function (ip) {
+        var airCastServer;
+        var streamAddress = 'http://' + ip + ':' + httpPort;
+        airCastServer = new AircastServer(service.name, streamAddress, castDevice);
+        airCastServer.start();
+        airCastServers[castDevice.name] = airCastServer;
+    });
 });
 
-airplayServer.start();
-logger.info('Started AirCast server [', serverName, ']');
+browser.start();
+
+var AircastServer = function (serverName, streamAddress, castDevice) {
+    this.streamAddress = streamAddress;
+    this.castDevice = castDevice;
+    this.server = new AirTunesServer({
+        serverName: serverName
+    });
+
+    logger.info('Starting AirTunes server:', serverName);
+    this.server.start();
+};
+
+AircastServer.prototype.start = function () {
+    this.server.on('clientConnected', function (stream) {
+        logger.info('AirPlay client connected, starting Chromecast receiver');
+        logger.info('Stream available at', this.streamAddress);
+        var sender = new cast.Sender(this.castDevice.address, this.streamAddress);
+        sender.cast();
+        stream.pipe(audioStream);
+    }.bind(this));
+};
+
