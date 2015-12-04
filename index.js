@@ -74,7 +74,15 @@ streamServer.on('listening', function () {
 });
 
 var airCastServers = {};
-var browser = mdns.createBrowser(mdns.tcp('googlecast'));
+
+// Fix for getaddrinfo issues with ipv6:
+// https://github.com/agnat/node_mdns/issues/130
+var sequence = [
+    mdns.rst.DNSServiceResolve(),
+    'DNSServiceGetAddrInfo' in mdns.dns_sd ? mdns.rst.DNSServiceGetAddrInfo() : mdns.rst.getaddrinfo({families:[4]}),
+    mdns.rst.makeAddressesUnique()
+];
+var browser = mdns.createBrowser(mdns.tcp('googlecast'), {resolverSequence: sequence});
 browser.on('serviceUp', function (service) {
     logger.info('Found Cast device:', service.name);
 
