@@ -35,7 +35,6 @@ if (!argv.port) {
     argv.port = 0;
 }
 
-
 var streamServer = http.createServer(function (req, res) {
     logger.info('HTTP Client connected. Headers: ', req.headers);
     var writer = wav.Writer();
@@ -92,6 +91,10 @@ browser.on('serviceUp', function (service) {
         port: service.port
     };
 
+    if (castDevice.name in airCastServers) {
+        return;
+    }
+
     localIpResolve.then(function (ip) {
         var airCastServer;
         var streamAddress = 'http://' + ip + ':' + httpPort;
@@ -101,13 +104,23 @@ browser.on('serviceUp', function (service) {
     });
 });
 
+browser.on('serviceDown', function (service) {
+    var deviceName = service.name;
+    logger.info('Cast device:', deviceName , 'is gone.');
+    if (deviceName in airCastServers) {
+        airCastServers[deviceName].stop();
+        delete airCastServers[deviceName];
+    }
+});
+
 browser.start();
 
 var AircastServer = function (serverName, streamAddress, castDevice) {
     this.streamAddress = streamAddress;
     this.castDevice = castDevice;
+    this.serverName = serverName;
     this.server = new AirTunesServer({
-        serverName: serverName
+        serverName: this.serverName
     });
 
     logger.info('Starting AirTunes server:', serverName);
@@ -124,3 +137,7 @@ AircastServer.prototype.start = function () {
     }.bind(this));
 };
 
+AircastServer.prototype.stop = function () {
+    logger.info('Stopping service for', this.serverName);
+    this.server.stop();
+}
