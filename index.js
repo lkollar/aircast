@@ -30,6 +30,8 @@ if (argv.help) {
     process.exit(0);
 }
 
+var getMac = Promise.promisify(require("getmac").getMac);
+
 // The .default() method in optimist would print 0 as default which can be
 // misleading, so let's not use it.
 if (!argv.port) {
@@ -99,9 +101,14 @@ browser.on('serviceUp', function (service) {
     localIpResolve.then(function (ip) {
         var airCastServer;
         var streamAddress = 'http://' + ip + ':' + httpPort;
-        airCastServer = new AircastServer(service.name, streamAddress, castDevice);
-        airCastServer.start();
-        airCastServers[castDevice.name] = airCastServer;
+        getMac().then(function(mac) {
+            airCastServer = new AircastServer(
+                service.name,
+                streamAddress,
+                castDevice, mac);
+            airCastServer.start();
+            airCastServers[castDevice.name] = airCastServer;
+        });
     });
 });
 
@@ -116,12 +123,13 @@ browser.on('serviceDown', function (service) {
 
 browser.start();
 
-var AircastServer = function (serverName, streamAddress, castDevice) {
+var AircastServer = function (serverName, streamAddress, castDevice, mac) {
     this.streamAddress = streamAddress;
     this.castDevice = castDevice;
     this.serverName = serverName;
     this.server = new AirTunesServer({
-        serverName: this.serverName
+        serverName: this.serverName,
+        macAddress: mac
     });
 
     logger.info('Starting AirTunes server:', serverName);
