@@ -4,7 +4,7 @@
   "description": "AirPlay to Chromecast Bridge",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./node_modules/mocha/bin/mocha test"
   },
   "author": "",
   "license": "MIT",
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "mockery": "^1.4.0",
-    "sinon": "^1.17.2"
+    "sinon": "^1.17.2",
+    "mocha": "^2.3.4"
   }
 }
