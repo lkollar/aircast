@@ -9,7 +9,6 @@ var mdns = require('mdns');
 var Promise = require('bluebird');
 
 var cast = require('./cast');
-var net = require('./net.js');
 
 var audioStream = new BufferedStream;
 
