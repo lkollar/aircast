@@ -1,14 +1,15 @@
+var os = require('os');
+var http = require('http');
+
 var logger = require('winston');
 var AirTunesServer = require('nodetunes');
-var http = require('http');
 var BufferedStream = require('bufferedstream');
 var wav = require('wav');
-var os = require('os');
-var cast = require('./cast');
-var net = require('./net.js');
+var mdns = require('mdns');
 var Promise = require('bluebird');
 
-var mdns = require('mdns');
+var cast = require('./cast');
+var net = require('./net.js');
 
 var audioStream = new BufferedStream;
 
