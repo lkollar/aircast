@@ -31,6 +31,7 @@ if (argv.help) {
 }
 
 var getMac = Promise.promisify(require("getmac").getMac);
+var getIp = Promise.promisify(require('dns').lookup);
 
 // The .default() method in optimist would print 0 as default which can be
 // misleading, so let's not use it.
@@ -66,7 +67,7 @@ var localIpResolve;
 if (argv.ip) {
     localIpResolve = Promise.resolve(argv.ip);
 } else {
-    localIpResolve = net.getIp(os.hostname());
+    localIpResolve = getIp(os.hostname());
 }
 streamServer.listen(argv.port);
 
@@ -101,6 +102,7 @@ browser.on('serviceUp', function (service) {
     localIpResolve.then(function (ip) {
         var airCastServer;
         var streamAddress = 'http://' + ip + ':' + httpPort;
+        logger.info('Starting stream at', streamAddress);
         getMac().then(function(mac) {
             airCastServer = new AircastServer(
                 service.name,
