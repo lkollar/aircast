@@ -7,20 +7,22 @@ var BufferedStream = require('bufferedstream');
 var wav = require('wav');
 var mdns = require('mdns');
 var Promise = require('bluebird');
+var _ = require('lodash');
 
 var cast = require('./cast');
+var net = require('./net');
 
 var audioStream = new BufferedStream;
 
 var optimist = require('optimist')
     .usage('Usage $0 [options]')
     .describe('h', 'Display help')
-    .describe('i', 'Ip or hostname for the audio stream (default: first' +
+    .describe('i', 'Network interface for the audio stream (default: first' +
         ' external interface)')
     .describe('p', 'Port for HTTP streaming server (default: allocate random' +
         ' port)')
     .alias('h', 'help')
-    .alias('i', 'ip')
+    .alias('i', 'interface')
     .alias('p', 'port');
 
 var argv = optimist.argv;
@@ -62,12 +64,25 @@ streamServer.on('error', function (e) {
     }
 });
 var httpPort;
-var localIpResolve;
-if (argv.ip) {
-    localIpResolve = Promise.resolve(argv.ip);
-} else {
-    localIpResolve = getIp(os.hostname());
+var externalIp;
+var interfaces = net.getExternalInterfaces();
+if (!Object.keys(interfaces).length) {
+    console.log('No external network interface detected.');
+    process.exit(-1);
 }
+
+if (argv.interface) {
+    externalIp = net.getAddress(interfaces, argv.interface);
+} else {
+    var interface = Object.keys(interfaces)[0];
+    externalIp = net.getAddress(interfaces, interface);
+}
+
+if (!externalIp) {
+    logger.error('Could not find external IP')
+    process.exit(-1);
+}
+
 streamServer.listen(argv.port);
 
 streamServer.on('listening', function () {
@@ -98,18 +113,16 @@ browser.on('serviceUp', function (service) {
         return;
     }
 
-    localIpResolve.then(function (ip) {
-        var airCastServer;
-        var streamAddress = 'http://' + ip + ':' + httpPort;
-        logger.info('Starting stream at', streamAddress);
-        getMac().then(function(mac) {
-            airCastServer = new AircastServer(
-                service.name,
-                streamAddress,
-                castDevice, mac);
-            airCastServer.start();
-            airCastServers[castDevice.name] = airCastServer;
-        });
+    var airCastServer;
+    var streamAddress = 'http://' + externalIp + ':' + httpPort;
+    logger.info('Starting stream at', streamAddress);
+    getMac().then(function(mac) {
+        airCastServer = new AircastServer(
+            service.name,
+            streamAddress,
+            castDevice, mac);
+        airCastServer.start();
+        airCastServers[castDevice.name] = airCastServer;
     });
 });
 
