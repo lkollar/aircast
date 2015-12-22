@@ -15,3 +15,4 @@ before_install:
 install:
   - sudo apt-get install -y libavahi-compat-libdnssd-dev g++-4.8
   - export CXX="g++-4.8"
+  - npm install
