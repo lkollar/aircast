@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/lkollar/aircast.svg)](https://travis-ci.org/lkollar/aircast)
+
 # AirCast - Stream AirPlay audio to Chromecast devices
 
 
